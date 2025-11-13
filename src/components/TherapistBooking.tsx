@@ -4,7 +4,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
-import { Calendar, Video, User, Trash2, Edit } from "lucide-react";
+import { Calendar, Video, User, Trash2, Edit, Mail, Briefcase } from "lucide-react";
 import {
   Dialog,
   DialogContent,
@@ -31,6 +31,9 @@ interface Booking {
   status: string;
   therapists: {
     name: string;
+    email: string;
+    specialization: string;
+    avatar_url: string | null;
   };
 }
 
@@ -69,7 +72,7 @@ const TherapistBooking = ({ userId }: TherapistBookingProps) => {
       .from("bookings")
       .select(`
         *,
-        therapists (name)
+        therapists (name, email, specialization, avatar_url)
       `)
       .eq("user_id", userId)
       .order("booking_date", { ascending: false });
@@ -167,23 +170,38 @@ const TherapistBooking = ({ userId }: TherapistBookingProps) => {
   return (
     <div className="space-y-6">
       <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
-        {therapists.map((therapist) => (
-          <Card key={therapist.id} className="hover:shadow-lg transition-shadow">
-            <CardHeader>
-              <div className="flex items-center gap-3 mb-2">
-                <div className="h-12 w-12 rounded-full bg-primary/10 flex items-center justify-center">
-                  <User className="h-6 w-6 text-primary" />
+        {therapists.map((therapist, index) => {
+          const colors = [
+            { bg: "bg-gradient-to-br from-teal-50 to-teal-100 dark:from-teal-950 dark:to-teal-900", icon: "bg-teal-500", badge: "bg-teal-200 dark:bg-teal-800" },
+            { bg: "bg-gradient-to-br from-purple-50 to-purple-100 dark:from-purple-950 dark:to-purple-900", icon: "bg-purple-500", badge: "bg-purple-200 dark:bg-purple-800" },
+            { bg: "bg-gradient-to-br from-coral-50 to-coral-100 dark:from-coral-950 dark:to-coral-900", icon: "bg-coral-500", badge: "bg-coral-200 dark:bg-coral-800" },
+          ];
+          const colorScheme = colors[index % colors.length];
+          
+          return (
+            <Card key={therapist.id} className={`hover:shadow-xl transition-all duration-300 border-2 ${colorScheme.bg}`}>
+              <CardHeader>
+                <div className="flex items-start gap-3 mb-3">
+                  <div className={`h-14 w-14 rounded-full ${colorScheme.icon} flex items-center justify-center flex-shrink-0`}>
+                    <User className="h-7 w-7 text-white" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <CardTitle className="text-xl mb-2">{therapist.name}</CardTitle>
+                    <Badge className={`${colorScheme.badge} text-foreground border-0`}>
+                      <Briefcase className="h-3 w-3 mr-1" />
+                      {therapist.specialization}
+                    </Badge>
+                  </div>
                 </div>
-                <div>
-                  <CardTitle className="text-lg">{therapist.name}</CardTitle>
-                  <Badge variant="secondary" className="mt-1">
-                    {therapist.specialization}
-                  </Badge>
+                <CardDescription className="text-sm line-clamp-2 mb-3">
+                  {therapist.bio || "Experienced therapist dedicated to your wellness"}
+                </CardDescription>
+                <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                  <Mail className="h-4 w-4" />
+                  <span className="truncate">{therapist.email}</span>
                 </div>
-              </div>
-              <CardDescription>{therapist.bio || "Experienced therapist dedicated to your wellness"}</CardDescription>
-            </CardHeader>
-            <CardContent>
+              </CardHeader>
+              <CardContent>
               <Dialog open={isDialogOpen && selectedTherapist?.id === therapist.id} onOpenChange={setIsDialogOpen}>
                 <DialogTrigger asChild>
                   <Button
@@ -217,9 +235,10 @@ const TherapistBooking = ({ userId }: TherapistBookingProps) => {
                   </div>
                 </DialogContent>
               </Dialog>
-            </CardContent>
-          </Card>
-        ))}
+              </CardContent>
+            </Card>
+          );
+        })}
       </div>
 
       {bookings.length > 0 && (
@@ -228,23 +247,60 @@ const TherapistBooking = ({ userId }: TherapistBookingProps) => {
             <CardTitle>Your Bookings</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="space-y-3">
-              {bookings.map((booking) => (
-                <div key={booking.id} className="flex items-center justify-between p-4 rounded-lg bg-muted/50">
-                  <div className="flex-1">
-                    <p className="font-medium">{booking.therapists.name}</p>
-                    <p className="text-sm text-muted-foreground">
-                      {new Date(booking.booking_date).toLocaleString("en-US", {
-                        month: "short",
-                        day: "numeric",
-                        year: "numeric",
-                        hour: "numeric",
-                        minute: "2-digit",
-                      })}
-                    </p>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <Badge>{booking.status}</Badge>
+            <div className="space-y-4">
+              {bookings.map((booking, index) => {
+                const statusColors: Record<string, string> = {
+                  scheduled: "bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200",
+                  completed: "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200",
+                  cancelled: "bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200",
+                };
+                
+                const cardColors = [
+                  "bg-gradient-to-r from-teal-50 to-cyan-50 dark:from-teal-950 dark:to-cyan-950 border-teal-200 dark:border-teal-800",
+                  "bg-gradient-to-r from-purple-50 to-pink-50 dark:from-purple-950 dark:to-pink-950 border-purple-200 dark:border-purple-800",
+                  "bg-gradient-to-r from-amber-50 to-orange-50 dark:from-amber-950 dark:to-orange-950 border-amber-200 dark:border-amber-800",
+                ];
+                
+                return (
+                  <div 
+                    key={booking.id} 
+                    className={`flex flex-col md:flex-row md:items-center justify-between p-5 rounded-xl border-2 ${cardColors[index % cardColors.length]} shadow-sm hover:shadow-md transition-all`}
+                  >
+                    <div className="flex-1 space-y-2 mb-4 md:mb-0">
+                      <div className="flex items-center gap-3">
+                        <div className="h-10 w-10 rounded-full bg-primary/20 flex items-center justify-center">
+                          <User className="h-5 w-5 text-primary" />
+                        </div>
+                        <div>
+                          <p className="font-semibold text-lg">{booking.therapists.name}</p>
+                          <p className="text-sm text-muted-foreground flex items-center gap-1">
+                            <Briefcase className="h-3 w-3" />
+                            {booking.therapists.specialization}
+                          </p>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-2 text-sm text-muted-foreground ml-13">
+                        <Mail className="h-4 w-4" />
+                        <span>{booking.therapists.email}</span>
+                      </div>
+                      <div className="flex items-center gap-2 ml-13">
+                        <Calendar className="h-4 w-4 text-muted-foreground" />
+                        <p className="text-sm font-medium">
+                          {new Date(booking.booking_date).toLocaleString("en-US", {
+                            weekday: "long",
+                            month: "long",
+                            day: "numeric",
+                            year: "numeric",
+                            hour: "numeric",
+                            minute: "2-digit",
+                          })}
+                        </p>
+                      </div>
+                    </div>
+                    <div className="flex flex-wrap items-center gap-2">
+                    <Badge className={`${statusColors[booking.status] || statusColors.scheduled} border-0`}>
+                      {booking.status}
+                    </Badge>
                     <Button
                       size="sm"
                       onClick={() => window.open(getJitsiLink(booking.jitsi_room_code), "_blank")}
@@ -294,7 +350,8 @@ const TherapistBooking = ({ userId }: TherapistBookingProps) => {
                     </Button>
                   </div>
                 </div>
-              ))}
+                );
+              })}
             </div>
           </CardContent>
         </Card>
