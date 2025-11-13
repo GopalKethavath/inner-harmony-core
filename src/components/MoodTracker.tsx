@@ -4,7 +4,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
-import { Smile, Meh, Frown } from "lucide-react";
+import { Trash2 } from "lucide-react";
 
 interface MoodTrackerProps {
   userId: string;
@@ -66,9 +66,28 @@ const MoodTracker = ({ userId }: MoodTrackerProps) => {
   };
 
   const getMoodEmoji = (level: number) => {
-    if (level >= 4) return <Smile className="h-6 w-6 text-green-500" />;
-    if (level === 3) return <Meh className="h-6 w-6 text-yellow-500" />;
-    return <Frown className="h-6 w-6 text-orange-500" />;
+    const emojiMap: Record<number, string> = {
+      5: "😄",
+      4: "🙂",
+      3: "😐",
+      2: "😕",
+      1: "😢"
+    };
+    return <span className="text-2xl">{emojiMap[level] || "😐"}</span>;
+  };
+
+  const handleDeleteMood = async (moodId: string) => {
+    const { error } = await supabase
+      .from("moods")
+      .delete()
+      .eq("id", moodId);
+
+    if (error) {
+      toast({ title: "Error deleting mood", description: error.message, variant: "destructive" });
+    } else {
+      toast({ title: "Mood deleted successfully" });
+      fetchRecentMoods();
+    }
   };
 
   return (
@@ -127,6 +146,14 @@ const MoodTracker = ({ userId }: MoodTrackerProps) => {
                     </p>
                     {mood.notes && <p className="text-sm mt-1">{mood.notes}</p>}
                   </div>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    onClick={() => handleDeleteMood(mood.id)}
+                    className="text-muted-foreground hover:text-destructive"
+                  >
+                    <Trash2 className="h-4 w-4" />
+                  </Button>
                 </div>
               ))}
             </div>
