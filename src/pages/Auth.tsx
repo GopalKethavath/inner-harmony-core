@@ -1,6 +1,12 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import { supabase } from "@/integrations/supabase/client";
+import { auth } from "@/lib/firebase";
+import { 
+  createUserWithEmailAndPassword, 
+  signInWithEmailAndPassword,
+  onAuthStateChanged,
+  updateProfile
+} from "firebase/auth";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -24,19 +30,13 @@ const Auth = () => {
   const { toast } = useToast();
 
   useEffect(() => {
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      if (session) {
+    const unsubscribe = onAuthStateChanged(auth, (user) => {
+      if (user) {
         navigate("/dashboard");
       }
     });
 
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
-      if (session) {
-        navigate("/dashboard");
-      }
-    });
-
-    return () => subscription.unsubscribe();
+    return () => unsubscribe();
   }, [navigate]);
 
   const handleAuth = async (e: React.FormEvent) => {
@@ -57,50 +57,36 @@ const Auth = () => {
       }
 
       if (isLogin) {
-        const { error } = await supabase.auth.signInWithPassword({ email, password });
-        if (error) {
-          if (error.message.includes("Invalid login credentials")) {
-            toast({
-              title: "Login Failed",
-              description: "Invalid email or password. Please try again.",
-              variant: "destructive",
-            });
-          } else {
-            throw error;
-          }
-        } else {
-          toast({ title: "Welcome back!", description: "Successfully signed in." });
-        }
+        await signInWithEmailAndPassword(auth, email, password);
+        toast({ title: "Welcome back!", description: "Successfully signed in." });
       } else {
-        const { error } = await supabase.auth.signUp({
-          email,
-          password,
-          options: {
-            emailRedirectTo: `${window.location.origin}/dashboard`,
-            data: { full_name: fullName },
-          },
-        });
-        if (error) {
-          if (error.message.includes("already registered")) {
-            toast({
-              title: "Account Exists",
-              description: "This email is already registered. Please sign in instead.",
-              variant: "destructive",
-            });
-          } else {
-            throw error;
-          }
-        } else {
-          toast({
-            title: "Welcome to MindCare!",
-            description: "Your account has been created successfully.",
+        const userCredential = await createUserWithEmailAndPassword(auth, email, password);
+        if (fullName) {
+          await updateProfile(userCredential.user, {
+            displayName: fullName
           });
         }
+        toast({
+          title: "Welcome to MindCare!",
+          description: "Your account has been created successfully.",
+        });
       }
     } catch (error: any) {
+      let errorMessage = error.message;
+      
+      if (error.code === "auth/email-already-in-use") {
+        errorMessage = "This email is already registered. Please sign in instead.";
+      } else if (error.code === "auth/invalid-credential" || error.code === "auth/wrong-password" || error.code === "auth/user-not-found") {
+        errorMessage = "Invalid email or password. Please try again.";
+      } else if (error.code === "auth/weak-password") {
+        errorMessage = "Password should be at least 6 characters.";
+      } else if (error.code === "auth/invalid-email") {
+        errorMessage = "Please enter a valid email address.";
+      }
+
       toast({
-        title: "Error",
-        description: error.message,
+        title: isLogin ? "Login Failed" : "Signup Failed",
+        description: errorMessage,
         variant: "destructive",
       });
     } finally {

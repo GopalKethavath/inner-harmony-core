@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { supabase } from "@/integrations/supabase/client";
-import { User } from "@supabase/supabase-js";
+import { auth } from "@/lib/firebase";
+import { onAuthStateChanged, signOut, User } from "firebase/auth";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { LogOut, Brain } from "lucide-react";
@@ -16,28 +16,20 @@ const Dashboard = () => {
   const navigate = useNavigate();
 
   useEffect(() => {
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      if (session?.user) {
-        setUser(session.user);
+    const unsubscribe = onAuthStateChanged(auth, (firebaseUser) => {
+      if (firebaseUser) {
+        setUser(firebaseUser);
       } else {
         navigate("/auth");
       }
       setLoading(false);
     });
 
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
-      if (session?.user) {
-        setUser(session.user);
-      } else {
-        navigate("/auth");
-      }
-    });
-
-    return () => subscription.unsubscribe();
+    return () => unsubscribe();
   }, [navigate]);
 
   const handleSignOut = async () => {
-    await supabase.auth.signOut();
+    await signOut(auth);
     navigate("/");
   };
 
@@ -53,9 +45,14 @@ const Dashboard = () => {
     <div className="min-h-screen bg-gradient-to-br from-background to-primary/5">
       <header className="border-b bg-card/50 backdrop-blur-sm sticky top-0 z-10">
         <div className="container mx-auto px-4 py-4 flex items-center justify-between">
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-3">
             <Brain className="h-8 w-8 text-primary" />
-            <h1 className="text-2xl font-bold">MindCare</h1>
+            <div>
+              <h1 className="text-2xl font-bold">MindCare</h1>
+              {user?.displayName && (
+                <p className="text-xs text-muted-foreground">{user.displayName}</p>
+              )}
+            </div>
           </div>
           <Button onClick={handleSignOut} variant="outline" size="sm">
             <LogOut className="h-4 w-4 mr-2" />
@@ -79,7 +76,7 @@ const Dashboard = () => {
           </TabsList>
 
           <TabsContent value="mood">
-            <MoodTracker userId={user?.id || ""} />
+            <MoodTracker userId={user?.uid || ""} />
           </TabsContent>
 
           <TabsContent value="meditations">
@@ -87,11 +84,11 @@ const Dashboard = () => {
           </TabsContent>
 
           <TabsContent value="symptoms">
-            <SymptomChecker userId={user?.id || ""} />
+            <SymptomChecker userId={user?.uid || ""} />
           </TabsContent>
 
           <TabsContent value="therapists">
-            <TherapistBooking userId={user?.id || ""} />
+            <TherapistBooking userId={user?.uid || ""} />
           </TabsContent>
         </Tabs>
       </main>
