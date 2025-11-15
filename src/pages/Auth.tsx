@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import { auth } from "@/lib/firebase";
+import { auth, db } from "@/lib/firebase";
 import { 
   createUserWithEmailAndPassword, 
   signInWithEmailAndPassword,
@@ -16,6 +16,7 @@ import { Separator } from "@/components/ui/separator";
 import { useToast } from "@/hooks/use-toast";
 import { Brain } from "lucide-react";
 import { z } from "zod";
+import { doc, getDoc, setDoc, serverTimestamp } from "firebase/firestore";
 
 const authSchema = z.object({
   email: z.string().email("Please enter a valid email address"),
@@ -46,7 +47,26 @@ const Auth = () => {
     setLoading(true);
     try {
       const provider = new GoogleAuthProvider();
-      await signInWithPopup(auth, provider);
+      const result = await signInWithPopup(auth, provider);
+      const user = result.user;
+
+      // Create or update user document in Firestore
+      const userRef = doc(db, "users", user.uid);
+      const existing = await getDoc(userRef);
+      if (!existing.exists()) {
+        await setDoc(userRef, {
+          uid: user.uid,
+          email: user.email,
+          fullName: user.displayName || "",
+          photoURL: user.photoURL || "",
+          provider: "google",
+          createdAt: serverTimestamp(),
+          updatedAt: serverTimestamp(),
+        });
+      } else {
+        await setDoc(userRef, { updatedAt: serverTimestamp() }, { merge: true });
+      }
+
       toast({ 
         title: "Welcome!", 
         description: "Successfully signed in with Google." 
@@ -60,6 +80,12 @@ const Auth = () => {
         errorMessage = "Another sign-in popup is already open.";
       } else if (error.code === "auth/popup-blocked") {
         errorMessage = "Sign-in popup was blocked by your browser. Please enable popups.";
+      } else if (error.code === "auth/operation-not-allowed") {
+        errorMessage = "Google sign-in is disabled in your auth settings.";
+      } else if (error.code === "auth/unauthorized-domain") {
+        errorMessage = "This domain isn't authorized for Google sign-in. Add it in your auth settings.";
+      } else if (error.code === "auth/invalid-api-key") {
+        errorMessage = "Invalid API key. Check your Firebase credentials.";
       }
 
       toast({
@@ -99,6 +125,16 @@ const Auth = () => {
             displayName: fullName
           });
         }
+        const user = userCredential.user;
+        await setDoc(doc(db, "users", user.uid), {
+          uid: user.uid,
+          email: user.email,
+          fullName: fullName || user.displayName || "",
+          photoURL: user.photoURL || "",
+          provider: "password",
+          createdAt: serverTimestamp(),
+          updatedAt: serverTimestamp(),
+        });
         toast({
           title: "Welcome to MindCare!",
           description: "Your account has been created successfully.",
